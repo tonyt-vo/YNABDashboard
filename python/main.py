@@ -127,10 +127,10 @@ for transaction in new_transactions:
             "id": transaction.id,
             "payee": transaction.payee_name,
             "flagColor": transaction.flag_color
-
         },
         "fields": {
-            "amount": transaction.amount
+            "amount": transaction.amount,
+            "memo": transaction.memo
         }
     }
     points.append(transaction_json)
