@@ -10,19 +10,21 @@ import time
 import ynab_client
 import ynab_resources
 
-from datetime import datetime,timedelta
+from utils import remove_emojis
+from datetime import datetime, timedelta
 
 # Configurations
 config = "config.json"
-execution_datetime  = datetime.now().replace(minute=0,second=0,microsecond=0)
+execution_datetime = datetime.now().replace(minute=0, second=0, microsecond=0)
 
 # Execution
-## Setup logging
-logging.basicConfig(level=logging.INFO,stream=sys.stdout, format="[%(asctime)s] %(levelname)s :: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+# Setup logging
+logging.basicConfig(level=logging.INFO, stream=sys.stdout,
+                    format="[%(asctime)s] %(levelname)s :: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger = logging.getLogger()
 
 # Import and set all needed configurations
-with open(os.path.join(sys.path[0],config)) as json_file:
+with open(os.path.join(sys.path[0], config)) as json_file:
     config_data = json.load(json_file)
 idb_host = config_data["InfluxDBHost"]
 idb_port = config_data["InfluxDBPort"]
@@ -33,44 +35,49 @@ ynab_api_key = config_data["YNAB_API_Key"]
 ynab_budget_id = config_data["YNAB_Budget_ID"]
 
 # Initiate connection to InfluxDB
-influx_client = influxdb.InfluxDBClient(idb_host,idb_port,idb_user,idb_pass)
+influx_client = influxdb.InfluxDBClient(idb_host, idb_port, idb_user, idb_pass)
 
-## Verify existence of required index
+# Verify existence of required index
 indices = influx_client.get_list_database()
 if not any(index["name"] == idb_index for index in indices):
     influx_client.create_database(idb_index)
 influx_client.switch_database(idb_index)
 
 # Query for existing transaction data in InfluxDB
-influx_query_transactions = ('SELECT * FROM "{}"."autogen"."transactions"'.format(idb_index))
-influx_transactions_points = influx_client.query(influx_query_transactions).get_points(measurement='transactions')
+influx_query_transactions = (
+    'SELECT * FROM "{}"."autogen"."transactions"'.format(idb_index))
+influx_transactions_points = influx_client.query(
+    influx_query_transactions).get_points(measurement='transactions')
 influx_transactions_list = list(influx_transactions_points)
 influx_transactions_ids = [i["id"] for i in influx_transactions_list]
 
-## Configure and connect to YNAB
-ynab_config = ynab_client.configuration(api_key=ynab_api_key,budget_id=ynab_budget_id)
+# Configure and connect to YNAB
+ynab_config = ynab_client.configuration(
+    api_key=ynab_api_key, budget_id=ynab_budget_id)
 ynab = ynab_client.connect(ynab_config)
 
-## Get and parse budget data
+# Get and parse budget data
 budget = ynab.get_budget_by_id_detailed(ynab_budget_id)
 accounts = [a for a in budget.accounts if not a.deleted and not a.closed]
 categories = [c for c in budget.categories if not c.deleted and not c.hidden]
 payees = budget.payees
 all_transactions = [t for t in budget.transactions]
 all_transactions_ids = [t.id for t in all_transactions]
-new_transactions = [t for t in all_transactions if not any(t.id in id for id in influx_transactions_ids)]
-bad_transactions = [i for i in influx_transactions_ids if not any(i in id for id in all_transactions_ids)]
+new_transactions = [t for t in all_transactions if not any(
+    t.id in id for id in influx_transactions_ids)]
+bad_transactions = [i for i in influx_transactions_ids if not any(
+    i in id for id in all_transactions_ids)]
 
-## Create plot points
+# Create plot points
 points = []
 for account in accounts:
     account_json = {
         "measurement": "accounts",
         "time": execution_datetime.isoformat(),
         "tags": {
-            "account": account.name,
+            "account": remove_emojis(account.name),
             "id": account.id,
-            "budget": budget.name,
+            "budget": remove_emojis(budget.name),
             "type": account.type,
             "closed": account.closed,
             "deleted": account.deleted,
@@ -89,9 +96,9 @@ for category in categories:
         "measurement": "categories",
         "time": execution_datetime.isoformat(),
         "tags": {
-            "budget": budget.name,
-            "category": category.name,
-            "categoryGroup": category.category_group_name,
+            "budget": remove_emojis(budget.name),
+            "category": remove_emojis(category.name),
+            "categoryGroup": remove_emojis(category.category_group_name),
             "goalType": category.goal_type,
             "goalTargetMonth": category.goal_target_month,
             "id": category.id,
@@ -113,14 +120,14 @@ for transaction in new_transactions:
         "measurement": "transactions",
         "time": transaction.date,
         "tags": {
-            "account": transaction.account_name,
-            "budget": budget.name,
-            "category": transaction.category_name,
-            "categoryGroup": transaction.category_group_name,
+            "account": remove_emojis(transaction.account_name),
+            "budget": remove_emojis(budget.name),
+            "category": remove_emojis(transaction.category_name),
+            "categoryGroup": remove_emojis(transaction.category_group_name),
             "id": transaction.id,
             "payee": transaction.payee_name,
             "flagColor": transaction.flag_color
-            
+
         },
         "fields": {
             "amount": transaction.amount
@@ -128,10 +135,11 @@ for transaction in new_transactions:
     }
     points.append(transaction_json)
 
-## Remove bad points
+# Remove bad points
 for b in bad_transactions:
-    influx_query_delete = "DELETE FROM \"transactions\" WHERE \"id\"='{}'".format(b)
+    influx_query_delete = "DELETE FROM \"transactions\" WHERE \"id\"='{}'".format(
+        b)
     influx_client.query(influx_query_delete)
 
-## Write all new points
+# Write all new points
 influx_client.write_points(points)
