@@ -1,29 +1,36 @@
-## Functions
-def convert_currency(self,currency):
-    output = round(currency/1000,2)
+# Functions
+def convert_currency(self, currency):
+    output = round(currency/1000, 2)
     return output
 
-def convert_date(self,date_str):
+
+def convert_date(self, date_str):
     import dateutil.parser as parser
     return parser.parse(date_str).isoformat()
 
-## Classes
+# Classes
+
+
 class Account:
-    def __init__(self,json_data):
+    def __init__(self, json_data):
         self.id = json_data["id"]
         self.name = json_data["name"]
         self.type = json_data["type"]
-        self.balance = convert_currency(self=None,currency=json_data["balance"])
-        self.cleared_balance = convert_currency(self=None,currency=json_data["cleared_balance"])
-        self.uncleared_balance = convert_currency(self=None,currency=json_data["uncleared_balance"])
+        self.balance = convert_currency(
+            self=None, currency=json_data["balance"])
+        self.cleared_balance = convert_currency(
+            self=None, currency=json_data["cleared_balance"])
+        self.uncleared_balance = convert_currency(
+            self=None, currency=json_data["uncleared_balance"])
         self.closed = json_data["closed"]
         self.deleted = json_data["deleted"]
         self.note = json_data["note"]
         self.on_budget = json_data["on_budget"]
         self.transfer_payee_id = json_data["transfer_payee_id"]
 
+
 class Budget():
-    def __init__(self,json_data,details=False):
+    def __init__(self, json_data, details=False):
         self.id = json_data["id"]
         self.name = json_data["name"]
         self.last_modified_on = json_data["last_modified_on"]
